@@ -13,9 +13,11 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
   @defaults [
     strategy: __MODULE__,
     site: "http://localhost:8080",
-    authorize_url: "http://localhost:8080/auth/realms/master/protocol/openid-connect/auth",
-    token_url: "http://localhost:8080/auth/realms/master/protocol/openid-connect/token",
-    userinfo_url: "http://localhost:8080/auth/realms/master/protocol/openid-connect/userinfo",
+    authorize_url: "http://localhost:8080/auth/realms/examples/protocol/openid-connect/auth",
+    token_url: "http://localhost:8080/auth/realms/examples/protocol/openid-connect/token",
+    userinfo_url: "http://localhost:8080/auth/realms/examples/protocol/openid-connect/userinfo",
+    introspect_url:
+      "http://localhost:8080/auth/realms/examples/protocol/openid-connect/token/introspect",
     token_method: :post
   ]
 
@@ -64,8 +66,7 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
   It will be used to get user profile information after an successful authentication.
   """
   def userinfo_url() do
-    config()
-    |> Keyword.get(:userinfo_url)
+    config() |> Keyword.get(:userinfo_url)
   end
 
   def get(token, url, headers \\ [], opts \\ []) do
@@ -75,10 +76,29 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
     |> OAuth2.Client.get(url, headers, opts)
   end
 
+  def post(token, url, headers \\ [], opts \\ []) do
+    c = client()
+
+    cliente = [
+      client_id: "tms-phoenix",
+      client_secret: "e132ee66-6ce2-41aa-b2ce-87e6bd7f84e5",
+      token: token
+    ]
+
+    c
+    |> put_header("content-type", "application/x-www-form-urlencoded")
+    |> put_header("accept", "application/json")
+    |> put_param("client_id", c.client_id)
+    |> put_param("client_secret", c.client_secret)
+    |> put_param("token", token)
+    |> OAuth2.Client.post(url, cliente, headers)
+  end
+
   def get_token!(params \\ [], options \\ []) do
     headers = Keyword.get(options, :headers, [])
     options = Keyword.get(options, :options, [])
     client_options = Keyword.get(options, :client_options, [])
+
     client = OAuth2.Client.get_token!(client(client_options), params, headers, options)
     client.token
   end
@@ -102,6 +122,9 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
     |> put_header("Accept", "application/json")
     |> OAuth2.Strategy.AuthCode.get_token(params, headers)
   end
+
+  def introspect_url(),
+    do: config() |> Keyword.get(:introspect_url)
 
   defp check_config_key_exists(config, key) when is_list(config) do
     unless Keyword.has_key?(config, key) do

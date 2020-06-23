@@ -191,6 +191,33 @@ defmodule Ueberauth.Strategy.Keycloak do
     }
   end
 
+  def validate_token(plug, nil), do: {:error, nil}
+
+  def validate_token(conn, token) do
+    introspect_token(conn, token)
+  end
+
+  defp introspect_token(conn, token) do
+    case Ueberauth.Strategy.Keycloak.OAuth.post(
+           token,
+           Ueberauth.Strategy.Keycloak.OAuth.introspect_url()
+         )
+      {:ok, %OAuth2.Response{status_code: 401, body: _body}} ->
+        set_errors!(conn, [error("token", "unauthorized")])
+
+      {:ok, %OAuth2.Response{status_code: status_code, body: %{"active" => active} = user}}
+      when status_code in 200..399 ->
+        if active do
+          {:ok, user}
+        else
+          set_errors!(conn, [error("token", "unauthorized")])
+        end
+
+      {:error, %OAuth2.Error{reason: reason}} ->
+        set_errors!(conn, [error("OAuth2", reason)])
+    end
+  end
+
   defp fetch_user(conn, token) do
     conn = put_private(conn, :keycloak_token, token)
     api_ver = option(conn, :api_ver) || "v4"
