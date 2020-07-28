@@ -13,11 +13,12 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
   @defaults [
     strategy: __MODULE__,
     site: "http://localhost:8080",
-    authorize_url: "http://localhost:8080/auth/realms/examples/protocol/openid-connect/auth",
-    token_url: "http://localhost:8080/auth/realms/examples/protocol/openid-connect/token",
-    userinfo_url: "http://localhost:8080/auth/realms/examples/protocol/openid-connect/userinfo",
+    authorize_url: "http://localhost:8080/auth/realms/LMS/protocol/openid-connect/auth",
+    token_url: "http://localhost:8080/auth/realms/LMS/protocol/openid-connect/token",
+    userinfo_url: "http://localhost:8080/auth/realms/LMS/protocol/openid-connect/userinfo",
     introspect_url:
-      "http://localhost:8080/auth/realms/examples/protocol/openid-connect/token/introspect",
+      "http://localhost:8080/auth/realms/LMS/protocol/openid-connect/token/introspect",
+    logout_url: "http://localhost:8080/auth/realms/LMS/protocol/openid-connect/logout",
     token_method: :post
   ]
 
@@ -76,35 +77,15 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
     |> OAuth2.Client.get(url, headers, opts)
   end
 
-  def post(token, url, headers \\ [], opts \\ []) do
-    c = client()
-
-    cliente = [
-      client_id: "tms-phoenix",
-      client_secret: "e132ee66-6ce2-41aa-b2ce-87e6bd7f84e5",
-      token: token
-    ]
-
-    c
-    |> put_header("content-type", "application/x-www-form-urlencoded")
-    |> put_header("accept", "application/json")
-    |> put_param("client_id", c.client_id)
-    |> put_param("client_secret", c.client_secret)
-    |> put_param("token", token)
-    |> OAuth2.Client.post(url, cliente, headers)
-  end
-
   def get_token!(params \\ [], options \\ []) do
     headers = Keyword.get(options, :headers, [])
     options = Keyword.get(options, :options, [])
     client_options = Keyword.get(options, :client_options, [])
-
     client = OAuth2.Client.get_token!(client(client_options), params, headers, options)
     client.token
   end
 
   # Strategy Callbacks
-
   def authorize_url(client, params) do
     client
     |> put_param("response_type", "code")
@@ -125,6 +106,27 @@ defmodule Ueberauth.Strategy.Keycloak.OAuth do
 
   def introspect_url(),
     do: config() |> Keyword.get(:introspect_url)
+
+  def logout_url(), do: config() |> Keyword.get(:logout_url)
+
+  def request_post(url, params \\ [], headers \\ []) do
+    client = client()
+
+    body =
+      [
+        client_id: client.client_id,
+        client_secret: client.client_secret
+      ] ++ params
+
+    client
+    |> put_header("content-type", "application/x-www-form-urlencoded")
+    |> put_header("accept", "application/json")
+    |> OAuth2.Client.post(url, body, headers)
+  end
+
+  def introspect(access_token), do: request_post(introspect_url(), token: access_token)
+
+  def logout(refresh_token), do: request_post(logout_url(), refresh_token: refresh_token)
 
   defp check_config_key_exists(config, key) when is_list(config) do
     unless Keyword.has_key?(config, key) do

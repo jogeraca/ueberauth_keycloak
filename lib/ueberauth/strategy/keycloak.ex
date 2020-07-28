@@ -78,6 +78,7 @@ defmodule Ueberauth.Strategy.Keycloak do
   alias Ueberauth.Auth.Info
   alias Ueberauth.Auth.Credentials
   alias Ueberauth.Auth.Extra
+  alias Ueberauth.Strategy.Keycloak.OAuth
 
   @doc """
   Handles the initial redirect to the keycloak authentication page.
@@ -198,10 +199,7 @@ defmodule Ueberauth.Strategy.Keycloak do
   end
 
   defp introspect_token(conn, token) do
-    case Ueberauth.Strategy.Keycloak.OAuth.post(
-           token,
-           Ueberauth.Strategy.Keycloak.OAuth.introspect_url()
-         )
+    case OAuth.introspect(token) do
       {:ok, %OAuth2.Response{status_code: 401, body: _body}} ->
         set_errors!(conn, [error("token", "unauthorized")])
 
@@ -222,9 +220,9 @@ defmodule Ueberauth.Strategy.Keycloak do
     conn = put_private(conn, :keycloak_token, token)
     api_ver = option(conn, :api_ver) || "v4"
 
-    case Ueberauth.Strategy.Keycloak.OAuth.get(
+    case OAuth.get(
            token,
-           Ueberauth.Strategy.Keycloak.OAuth.userinfo_url()
+           OAuth.userinfo_url()
          ) do
       {:ok, %OAuth2.Response{status_code: 401, body: _body}} ->
         set_errors!(conn, [error("token", "unauthorized")])
@@ -236,6 +234,10 @@ defmodule Ueberauth.Strategy.Keycloak do
       {:error, %OAuth2.Error{reason: reason}} ->
         set_errors!(conn, [error("OAuth2", reason)])
     end
+  end
+
+  def logout(conn, token) do
+    OAuth.logout(token)
   end
 
   defp option(conn, key) do
